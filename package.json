@@ -1,0 +1,46 @@
+{
+  "name": "playwright-saucedemo-framework",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test --grep @regression",
+    "test:e2e": "playwright test --grep @e2e",
+    "test:chrome": "playwright test --project=chrome",
+    "browsers:install": "playwright install chrome firefox webkit",
+    "report:playwright": "playwright show-report playwright-report",
+    "allure:generate": "allure generate allure-results --output allure-report --clean",
+    "allure:open": "allure open allure-report",
+    "allure:clean": "node -e \"for (const d of ['allure-results','allure-report']) require('fs').rmSync(d,{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "dashboard:install": "npm --prefix dashboard ci",
+    "dashboard": "npm --prefix dashboard run dev"
+  },
+  "keywords": [
+    "playwright",
+    "typescript",
+    "allure",
+    "e2e",
+    "saucedemo",
+    "page-object-model"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": "End-to-end test automation framework for Sauce Demo built with Playwright, TypeScript and Allure.",
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "^22.20.5",
+    "allure": "^3.21.0",
+    "allure-js-commons": "^3.14.0",
+    "allure-playwright": "^3.14.0",
+    "dotenv": "^18.0.8",
+    "typescript": "^7.0.2"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

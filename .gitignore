@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Playwright output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+
+# Allure output
+allure-results/
+allure-report/
+.allure/
+
+# Logs and temp files
+*.log
+npm-debug.log*
+*.tmp
+*.tmp.*
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Jenkins npm cache
+.npm/
+
+# Dashboard run history (generated)
+.dashboard/
