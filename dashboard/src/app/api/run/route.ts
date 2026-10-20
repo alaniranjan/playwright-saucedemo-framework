@@ -1,4 +1,6 @@
 import { connection, type NextRequest } from 'next/server';
+import { CLOUD } from '@/lib/server/cloud';
+import { cancelCloudRun, getCloudRunState, startCloudRun } from '@/lib/server/github';
 import { isSameOrigin } from '@/lib/server/http';
 import { trackTerminalRun } from '@/lib/server/ingest';
 import { readLive } from '@/lib/server/live';
@@ -41,6 +43,16 @@ export async function GET(request: NextRequest) {
   const offset = Number(params.get('offset') ?? 0) || 0;
   const runId = Number(params.get('runId') ?? -1);
 
+  // Hosted: the run is a GitHub Actions workflow run.
+  if (CLOUD) {
+    try {
+      return Response.json(await getCloudRunState(offset, runId), { headers: { 'Cache-Control': 'no-store' } });
+    } catch (error) {
+      if (error instanceof RunError) return Response.json({ error: error.message }, { status: error.status });
+      throw error;
+    }
+  }
+
   const live = await readLive();
   const state = getRunState(offset, runId);
   const liveRunId = isBusy() ? state.runId : await trackTerminalRun(live);
@@ -61,7 +73,7 @@ export async function POST(request: NextRequest) {
     );
   }
   try {
-    return Response.json(await startRun(runRequest), { status: 202 });
+    return Response.json(await (CLOUD ? startCloudRun(runRequest) : startRun(runRequest)), { status: 202 });
   } catch (error) {
     if (error instanceof RunError) return Response.json({ error: error.message }, { status: error.status });
     throw error;
@@ -73,5 +85,8 @@ export async function DELETE(request: NextRequest) {
   if (!isSameOrigin(request)) {
     return Response.json({ error: 'Cross-origin requests are not allowed' }, { status: 403 });
   }
-  return cancelRun() ? Response.json({ cancelled: true }) : Response.json({ error: 'No run in progress' }, { status: 409 });
+  const cancelled = CLOUD ? await cancelCloudRun() : cancelRun();
+  return cancelled
+    ? Response.json({ cancelled: true })
+    : Response.json({ error: 'No run in progress' }, { status: 409 });
 }

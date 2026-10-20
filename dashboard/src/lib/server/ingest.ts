@@ -33,26 +33,38 @@ async function classifyTerminalRun(args: string[]): Promise<{ suite: string; lab
   return { suite: 'custom', label: 'Custom' };
 }
 
-/** Records the latest report as a run (once per start time), with per-test outcomes and activity. */
-export async function ingestReport(report: ParsedReport | null): Promise<void> {
+/** Set by the GitHub Actions publish step: what started the run, and the ID the dashboard reserved for it. */
+export interface IngestOptions {
+  runId?: string | undefined;
+  suite?: string | undefined;
+  label?: string | undefined;
+  trigger?: RunRecord['trigger'] | undefined;
+  /** Wait for the Allure report instead of building it in the background (a CI step must not exit early). */
+  awaitReport?: boolean;
+}
+
+/** Records the latest report as a run (once per start time), with per-test outcomes and activity. Returns its ID. */
+export async function ingestReport(report: ParsedReport | null, options: IngestOptions = {}): Promise<string | null> {
   // `playwright test --list` writes a report too, with every test "skipped"; a listing is not a run.
-  if (!report || report.args.includes('--list')) return;
+  if (!report || report.args.includes('--list')) return null;
   const { summary } = report;
   const isKnown = (data: { runs: RunRecord[]; deletedStartTimes: string[] }) =>
     data.runs.some((run) => run.startTime === summary.startTime) || data.deletedStartTimes.includes(summary.startTime);
-  if (isKnown(await readStore())) return;
+  if (isKnown(await readStore())) return null;
 
   const launch = findLaunch(summary.startTime);
-  const { suite, label } = launch
-    ? { suite: launch.suite, label: launch.label }
-    : await classifyTerminalRun(report.args);
+  const classified = launch ? { suite: launch.suite, label: launch.label } : await classifyTerminalRun(report.args);
+  const suite = options.suite || classified.suite;
+  const label = options.label || classified.label;
+  const trigger: RunRecord['trigger'] = options.trigger ?? (launch ? 'dashboard' : 'terminal');
   let createdId: string | null = null;
   await updateStore((data) => {
     if (isKnown(data)) return;
 
     const startMs = new Date(summary.startTime).getTime();
     const reserved =
-      launch?.runId ??
+      options.runId ||
+      launch?.runId ||
       data.activity.find(
         (event) =>
           event.type === 'run.started' &&
@@ -69,7 +81,7 @@ export async function ingestReport(report: ParsedReport | null): Promise<void> {
       duration: summary.duration,
       suite,
       suiteLabel: label,
-      trigger: launch ? 'dashboard' : 'terminal',
+      trigger,
       args: report.args,
       counts: summary.counts,
       total: summary.total,
@@ -112,18 +124,22 @@ export async function ingestReport(report: ParsedReport | null): Promise<void> {
       );
   });
 
-  if (createdId) {
-    await archiveArtifacts(createdId, report);
-    // Every run, passed or failed, gets its own Allure report; generated in the background (it takes seconds).
-    const runId: string = createdId;
-    void generateRunReport(runId).then(async (ok) => {
-      if (!ok) return;
-      await updateStore((data) => {
-        const run = data.runs.find((entry) => entry.id === runId);
-        if (run) run.report = true;
-      });
+  if (!createdId) return null;
+  const runId: string = createdId;
+  await archiveArtifacts(runId, report);
+  // Every run, passed or failed, gets its own Allure report; locally it is built in the background (it takes seconds).
+  const reportDone = generateRunReport(runId).then(async (url) => {
+    if (!url) return;
+    await updateStore((data) => {
+      const run = data.runs.find((entry) => entry.id === runId);
+      if (!run) return;
+      run.report = true;
+      if (url.startsWith('http')) run.reportUrl = url;
     });
-  }
+  });
+  if (options.awaitReport) await reportDone;
+  else void reportDone;
+  return runId;
 }
 
 /** Keeps the run's screenshots, videos and traces beyond the next run, then prunes media of older runs. */
@@ -135,7 +151,10 @@ async function archiveArtifacts(runId: string, report: ParsedReport): Promise<vo
       if (archived[index]?.length) test.attachments = archived[index];
     });
     // Older runs lose their media and Allure report below.
-    store.runs.slice(0, -ARTIFACT_RUNS_KEPT).forEach((entry) => delete entry.report);
+    store.runs.slice(0, -ARTIFACT_RUNS_KEPT).forEach((entry) => {
+      delete entry.report;
+      delete entry.reportUrl;
+    });
   });
   await pruneArtifacts(new Set(data.runs.slice(-ARTIFACT_RUNS_KEPT).map((run) => run.id)));
 }

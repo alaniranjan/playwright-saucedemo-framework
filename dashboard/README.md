@@ -53,6 +53,34 @@ Or from this folder: `npm ci` then `npm run dev`. For a production build: `npm r
 
 The dashboard also shows runs started from the terminal (`npm test` in the framework). It reloads results every 15 seconds.
 
+## Hosted on Vercel (tests on GitHub Actions)
+
+Vercel can't launch browsers or keep files, so the hosted dashboard works differently from the local one:
+
+| | Local (`npm run dashboard`) | Hosted (Vercel) |
+|---|---|---|
+| Where tests run | This machine | GitHub Actions (`.github/workflows/e2e.yml`) |
+| Starting a run | Runs Playwright directly | **Run** dispatches the workflow through the GitHub API |
+| Run log | Playwright's output, live | Each workflow step as it starts and ends, plus a link to the GitHub run |
+| Live preview | Yes | No |
+| History, media, Allure reports | `.dashboard/` on disk | Vercel Blob, written by the workflow's publish step |
+
+The workflow runs on every push to `main` and when the dashboard dispatches it. After the tests it runs `npm run publish:run` (in `dashboard/`), which uses the same ingest code as the local dashboard to publish the test catalog, the run, failed tests' screenshots and videos, and a single-file Allure report.
+
+Cloud mode switches on only on Vercel or in GitHub Actions, when `BLOB_READ_WRITE_TOKEN` is set, so a token pulled into `.env.local` never changes the local dashboard.
+
+**Vercel project** (Root Directory: `dashboard`), environment variables:
+
+| Variable | Value |
+|---|---|
+| `BLOB_READ_WRITE_TOKEN` | Set automatically when a **public** Blob store is connected to the project |
+| `GITHUB_REPOSITORY` | `owner/repo`, e.g. `alaniranjan/playwright-saucedemo-framework` |
+| `GITHUB_TOKEN` | Fine-grained personal access token for that repository with **Actions: Read and write** (to start, follow and cancel runs) |
+| `DASHBOARD_PASSWORD` | Protects every page and API with a browser login (user `admin`, or `DASHBOARD_USER`). Strongly recommended: without it anyone with the URL can start runs |
+| `GITHUB_WORKFLOW_FILE`, `GITHUB_BRANCH` | Optional; default `e2e.yml` and `main` |
+
+**GitHub repository secret:** `BLOB_READ_WRITE_TOKEN`, the same value as on Vercel. Until it is set, the workflow still runs the tests but skips publishing.
+
 ## API
 
 The API Documentation page lists every endpoint, generated from `src/lib/api-docs.ts`:

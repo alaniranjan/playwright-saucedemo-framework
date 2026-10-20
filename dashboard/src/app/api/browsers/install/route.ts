@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server';
+import { CLOUD } from '@/lib/server/cloud';
 import { isSameOrigin } from '@/lib/server/http';
 import { RunError, startInstall } from '@/lib/server/runner';
 
@@ -6,6 +7,9 @@ import { RunError, startInstall } from '@/lib/server/runner';
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
     return Response.json({ error: 'Cross-origin requests are not allowed' }, { status: 403 });
+  }
+  if (CLOUD) {
+    return Response.json({ error: 'GitHub Actions installs every browser for each run' }, { status: 400 });
   }
   const body = (await request.json().catch(() => null)) as { browser?: unknown } | null;
   if (typeof body?.browser !== 'string') {

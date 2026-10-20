@@ -32,7 +32,9 @@ export function PreviewToggle({ size = 'md' }: { size?: 'sm' | 'md' }) {
       aria-checked={livePreview}
       onClick={() => setLivePreview(!livePreview)}
       title={
-        livePreview ? 'Live preview on: the browser is shown while tests run' : 'Live preview off: tests run in the background'
+        livePreview
+          ? 'Live preview on: the browser is shown while tests run'
+          : 'Live preview off: tests run in the background'
       }
       className={`inline-flex items-center gap-2 rounded-lg border font-medium transition-all duration-200 ${
         size === 'sm' ? 'h-8 px-2.5 text-xs' : 'h-9 px-3 text-sm'
@@ -49,7 +51,15 @@ export function PreviewToggle({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 /** Polls the latest snapshot of one worker slot; keeps showing the previous frame until the next one loads. */
-function FrameImage({ slot, title, className = 'aspect-video w-full' }: { slot: number; title: string; className?: string }) {
+function FrameImage({
+  slot,
+  title,
+  className = 'aspect-video w-full',
+}: {
+  slot: number;
+  title: string;
+  className?: string;
+}) {
   const [tick, setTick] = useState(0);
   const [hasFrame, setHasFrame] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -78,7 +88,8 @@ function FrameImage({ slot, title, className = 'aspect-video w-full' }: { slot: 
       {!hasFrame && (
         <div className="absolute inset-0 grid place-items-center text-sm text-white/60">
           <span className="inline-flex items-center gap-2">
-            <LoaderIcon width={16} height={16} className="animate-spin [animation-duration:2.5s]" /> Waiting for the first frame…
+            <LoaderIcon width={16} height={16} className="animate-spin [animation-duration:2.5s]" /> Waiting for the
+            first frame…
           </span>
         </div>
       )}
@@ -181,7 +192,15 @@ export function LivePreview() {
   const runStreams = activeRun?.source === 'terminal' || Boolean(run?.preview);
 
   let body: ReactNode;
-  if (!livePreview) {
+  if (results?.meta.mode === 'cloud') {
+    body = (
+      <Banner
+        icon={<EyeOffIcon width={22} height={22} />}
+        title="Tests run on GitHub Actions"
+        text="The hosted dashboard has no live browser view. Follow each step in the run log below or on GitHub; screenshots, videos and the Allure report appear when the run finishes."
+      />
+    );
+  } else if (!livePreview) {
     body = (
       <Banner
         icon={<EyeOffIcon width={22} height={22} />}
@@ -198,7 +217,13 @@ export function LivePreview() {
       />
     );
   } else if (activeRun.phase === 'reporting') {
-    body = <Banner icon={<LoaderIcon width={22} height={22} />} title="Tests finished" text="Generating the Allure report…" />;
+    body = (
+      <Banner
+        icon={<LoaderIcon width={22} height={22} />}
+        title="Tests finished"
+        text="Generating the Allure report…"
+      />
+    );
   } else if (!runStreams) {
     body = (
       <Banner
@@ -227,13 +252,22 @@ export function LivePreview() {
   return (
     <Card
       title="Live preview"
-      subtitle={livePreview ? (current ? `${running.length} test${running.length === 1 ? '' : 's'} running` : 'On') : 'Off'}
+      subtitle={
+        livePreview ? (current ? `${running.length} test${running.length === 1 ? '' : 's'} running` : 'On') : 'Off'
+      }
       actions={
         livePreview &&
         current && (
           <div className="flex flex-wrap items-center gap-2">
             {projects.find((entry) => entry.name === current.project)?.kind === 'device' && (
-              <Select label="Zoom" value={zoom} onChange={setZoom} options={ZOOM_OPTIONS} className="w-32" align="end" />
+              <Select
+                label="Zoom"
+                value={zoom}
+                onChange={setZoom}
+                options={ZOOM_OPTIONS}
+                className="w-32"
+                align="end"
+              />
             )}
             {running.length > 1 && (
               <Select

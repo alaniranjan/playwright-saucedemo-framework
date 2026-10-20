@@ -4,6 +4,8 @@ import { DeviceFrame } from './DeviceFrame';
 import { BrowserIcon } from './browsers';
 
 export function artifactUrl(path: string): string {
+  // The hosted dashboard stores attachments in Vercel Blob under full URLs.
+  if (/^https?:\/\//.test(path)) return path;
   return `/api/artifacts?path=${encodeURIComponent(path)}`;
 }
 

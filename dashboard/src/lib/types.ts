@@ -144,6 +144,12 @@ export interface FrameworkMeta {
   user: string;
   storeFile: string;
   maxRuns: number;
+  /** 'local': runs Playwright on this machine. 'cloud': hosted on Vercel, tests run on GitHub Actions. */
+  mode: 'local' | 'cloud';
+  /** The GitHub Actions workflow page, when hosted. */
+  ciUrl: string | null;
+  /** When GitHub Actions last published the test catalog (hosted only). */
+  catalogPublishedAt: string | null;
 }
 
 // ---- Persisted backend data ----
@@ -162,7 +168,8 @@ export interface RunTestRecord {
   attachments?: Attachment[];
 }
 
-export type RunTrigger = 'dashboard' | 'terminal';
+/** Who started a run: the dashboard, a terminal, or GitHub Actions on its own (a push to main). */
+export type RunTrigger = 'dashboard' | 'terminal' | 'ci';
 
 export interface RunRecord {
   /** e.g. RUN-20261020-003 */
@@ -185,6 +192,8 @@ export interface RunRecord {
   targets?: RunTarget[];
   /** True once the run's own Allure report has been generated (served at /api/runs/{id}/report/). */
   report?: boolean;
+  /** Where the report opens when it is not in the local archive (the hosted dashboard's Blob URL). */
+  reportUrl?: string;
 }
 
 export type ActivityType =
@@ -286,6 +295,8 @@ export interface RunState {
   logLength: number;
   /** Whether this run streams live frames. */
   preview: boolean;
+  /** Where the run can be followed outside the dashboard (the GitHub Actions run, when hosted). */
+  externalUrl?: string;
 }
 
 export interface RunStatePayload extends RunState {

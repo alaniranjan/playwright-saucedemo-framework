@@ -5,7 +5,7 @@ import { formatDuration } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { TargetIcon, targetLabel } from './browsers';
 import { Card } from './Card';
-import { StopIcon, TerminalIcon } from './icons';
+import { ExternalIcon, StopIcon, TerminalIcon } from './icons';
 import { buttonStyles } from './PageHeader';
 import { useDashboard } from './providers/DashboardProvider';
 
@@ -57,14 +57,23 @@ export function LiveRunCard() {
           : 'Start a run to stream its progress here'
       }
       actions={
-        busy && (
-          <button
-            type="button"
-            onClick={() => void cancelRun()}
-            className={`${buttonStyles.secondary} text-critical-text`}
-          >
-            <StopIcon width={13} height={13} /> Stop run
-          </button>
+        (busy || run?.externalUrl) && (
+          <div className="flex flex-wrap gap-2">
+            {run?.externalUrl && (
+              <a href={run.externalUrl} target="_blank" rel="noreferrer" className={buttonStyles.secondary}>
+                View on GitHub <ExternalIcon width={13} height={13} />
+              </a>
+            )}
+            {busy && (
+              <button
+                type="button"
+                onClick={() => void cancelRun()}
+                className={`${buttonStyles.secondary} text-critical-text`}
+              >
+                <StopIcon width={13} height={13} /> Stop run
+              </button>
+            )}
+          </div>
         )
       }
       className="flex flex-col"

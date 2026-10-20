@@ -6,6 +6,9 @@ import type { LiveState, ResultsPayload, RunPhase, RunRequest, RunState, RunStat
 const RESULTS_REFRESH_MS = 15_000;
 const RUN_POLL_ACTIVE_MS = 1_000;
 const RUN_POLL_IDLE_MS = 3_000;
+/** Hosted, run state comes from the GitHub API, which changes slowly and is rate limited. */
+const CLOUD_POLL_ACTIVE_MS = 4_000;
+const CLOUD_POLL_IDLE_MS = 10_000;
 const HEALTH_POLL_MS = 10_000;
 const MAX_CONSOLE_LINES = 3000;
 
@@ -102,7 +105,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const offsetRef = useRef(0);
   const runIdRef = useRef(-1);
   const activeRef = useRef(false);
-  const lastActiveRef = useRef<{ runId: string | null; source: 'dashboard' | 'terminal' }>({ runId: null, source: 'dashboard' });
+  const cloudRef = useRef(false);
+  const lastActiveRef = useRef<{ runId: string | null; source: 'dashboard' | 'terminal' }>({
+    runId: null,
+    source: 'dashboard',
+  });
   const completionCount = useRef(0);
   const wakeRef = useRef<() => void>(() => {});
 
@@ -111,7 +118,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch('/api/results', { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      setResults((await response.json()) as ResultsPayload);
+      const payload = (await response.json()) as ResultsPayload;
+      cloudRef.current = payload.meta.mode === 'cloud';
+      setResults(payload);
       setLoadError(null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Unknown error');
@@ -150,7 +159,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     async function poll() {
       clearTimeout(timer);
       try {
-        const response = await fetch(`/api/run?offset=${offsetRef.current}&runId=${runIdRef.current}`, { cache: 'no-store' });
+        const response = await fetch(`/api/run?offset=${offsetRef.current}&runId=${runIdRef.current}`, {
+          cache: 'no-store',
+        });
         const data = (await response.json()) as RunStatePayload;
         if (cancelled) return;
 
@@ -176,7 +187,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           void refresh().then(() => {
             if (!runId) return;
             completionCount.current += 1;
-            setCompletedRun({ runId, phase: source === 'dashboard' ? phase : 'finished', sequence: completionCount.current });
+            setCompletedRun({
+              runId,
+              phase: source === 'dashboard' ? phase : 'finished',
+              sequence: completionCount.current,
+            });
           });
         }
         activeRef.current = active;
@@ -198,7 +213,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       } catch {
         // Server restarting or offline; try again on the next tick.
       } finally {
-        if (!cancelled) timer = setTimeout(poll, activeRef.current ? RUN_POLL_ACTIVE_MS : RUN_POLL_IDLE_MS);
+        const [activeMs, idleMs] = cloudRef.current
+          ? [CLOUD_POLL_ACTIVE_MS, CLOUD_POLL_IDLE_MS]
+          : [RUN_POLL_ACTIVE_MS, RUN_POLL_IDLE_MS];
+        if (!cancelled) timer = setTimeout(poll, activeRef.current ? activeMs : idleMs);
       }
     }
 
@@ -213,8 +231,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const stored: unknown = JSON.parse(localStorage.getItem(BROWSERS_KEY) ?? '[]');
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (Array.isArray(stored)) setSelectedBrowsersState(stored.filter((item): item is string => typeof item === 'string'));
+      if (Array.isArray(stored)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedBrowsersState(stored.filter((item): item is string => typeof item === 'string'));
+      }
       const storedDevices: unknown = JSON.parse(localStorage.getItem(DEVICES_KEY) ?? '[]');
       if (Array.isArray(storedDevices))
         setSelectedDevicesState(storedDevices.filter((item): item is string => typeof item === 'string'));
@@ -298,7 +318,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const effectiveBrowsers = useMemo(() => {
     const desktop = (results?.catalog?.projects ?? []).filter((project) => project.kind === 'desktop');
-    const usable = selectedBrowsers.filter((name) => desktop.some((project) => project.name === name && project.installed));
+    const usable = selectedBrowsers.filter((name) =>
+      desktop.some((project) => project.name === name && project.installed),
+    );
     if (usable.length > 0 || effectiveDevices.length > 0) return usable;
     return desktop.slice(0, 1).map((project) => project.name);
   }, [results, selectedBrowsers, effectiveDevices]);
@@ -344,10 +366,22 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const busy = isBusyPhase(run?.phase);
   const activeRun = useMemo<ActiveRun | null>(() => {
     if (busy && run?.startedAt) {
-      return { runId: run.runId, label: run.label ?? 'Run', startedAt: run.startedAt, source: 'dashboard', phase: run.phase };
+      return {
+        runId: run.runId,
+        label: run.label ?? 'Run',
+        startedAt: run.startedAt,
+        source: 'dashboard',
+        phase: run.phase,
+      };
     }
     if (live?.active) {
-      return { runId: liveRunId, label: 'Terminal run', startedAt: live.startedAt, source: 'terminal', phase: 'running' };
+      return {
+        runId: liveRunId,
+        label: 'Terminal run',
+        startedAt: live.startedAt,
+        source: 'terminal',
+        phase: 'running',
+      };
     }
     return null;
   }, [busy, run, live, liveRunId]);

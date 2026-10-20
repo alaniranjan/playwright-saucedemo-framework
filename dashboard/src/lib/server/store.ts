@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import { labelFromScript } from '../naming';
 import type { ActivityEvent, RunRecord, StatusCounts } from '../types';
+import { BLOB_PATHS, CLOUD, cached, isConflict, readJson, writeJson } from './cloud';
 import { DATA_DIR, LEGACY_HISTORY_FILE, STORE_FILE } from './paths';
 
 /**
@@ -125,16 +126,19 @@ async function migrateLegacyHistory(): Promise<StoreData> {
   return data;
 }
 
+function normalize(parsed: Partial<StoreData>): StoreData {
+  return {
+    version: 1,
+    runs: parsed.runs ?? [],
+    activity: parsed.activity ?? [],
+    deletedStartTimes: parsed.deletedStartTimes ?? [],
+    lastRunNumber: parsed.lastRunNumber ?? {},
+  };
+}
+
 async function readStoreFile(): Promise<StoreData> {
   try {
-    const parsed = JSON.parse(await fs.readFile(STORE_FILE, 'utf8')) as Partial<StoreData>;
-    return {
-      version: 1,
-      runs: parsed.runs ?? [],
-      activity: parsed.activity ?? [],
-      deletedStartTimes: parsed.deletedStartTimes ?? [],
-      lastRunNumber: parsed.lastRunNumber ?? {},
-    };
+    return normalize(JSON.parse(await fs.readFile(STORE_FILE, 'utf8')) as Partial<StoreData>);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     const migrated = await migrateLegacyHistory();
@@ -159,17 +163,50 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
+// ---- Cloud: the same document in Vercel Blob, written by GitHub Actions and by the hosted dashboard ----
+
+const CLOUD_READ_TTL_MS = 5_000;
+const CLOUD_WRITE_ATTEMPTS = 5;
+
+async function readCloudStore(): Promise<{ data: StoreData; etag: string | null }> {
+  const document = await readJson<Partial<StoreData>>(BLOB_PATHS.store);
+  return { data: normalize(document?.data ?? {}), etag: document?.etag ?? null };
+}
+
+// Polling clients share one recent read per server instance.
+const cloudCache = cached(CLOUD_READ_TTL_MS, async () => (await readCloudStore()).data);
+
+/** Read-modify-write with the blob's ETag: if another writer got in first, re-read and apply `mutate` again. */
+async function updateCloudStore(mutate: (data: StoreData) => void): Promise<StoreData> {
+  for (let attempt = 1; ; attempt += 1) {
+    const { data, etag } = await readCloudStore();
+    applyMutation(data, mutate);
+    try {
+      await writeJson(BLOB_PATHS.store, data, etag ?? undefined);
+      cloudCache.set(data);
+      return data;
+    } catch (error) {
+      if (!isConflict(error) || attempt >= CLOUD_WRITE_ATTEMPTS) throw error;
+    }
+  }
+}
+
+function applyMutation(data: StoreData, mutate: (data: StoreData) => void): void {
+  mutate(data);
+  data.runs.sort((a, b) => a.startTime.localeCompare(b.startTime));
+  if (data.runs.length > MAX_RUNS) data.runs.splice(0, data.runs.length - MAX_RUNS);
+}
+
 export function readStore(): Promise<StoreData> {
-  return enqueue(readStoreFile);
+  return CLOUD ? cloudCache.get() : enqueue(readStoreFile);
 }
 
 /** Applies `mutate` to the stored data and saves it atomically. */
 export function updateStore(mutate: (data: StoreData) => void): Promise<StoreData> {
   return enqueue(async () => {
+    if (CLOUD) return updateCloudStore(mutate);
     const data = await readStoreFile();
-    mutate(data);
-    data.runs.sort((a, b) => a.startTime.localeCompare(b.startTime));
-    if (data.runs.length > MAX_RUNS) data.runs.splice(0, data.runs.length - MAX_RUNS);
+    applyMutation(data, mutate);
     await writeStoreFile(data);
     return data;
   });

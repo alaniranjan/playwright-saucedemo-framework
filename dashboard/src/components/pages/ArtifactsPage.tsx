@@ -18,7 +18,7 @@ import {
 import { EmptyState, PageHeader, buttonStyles } from '../PageHeader';
 import { useDashboard } from '../providers/DashboardProvider';
 import { StatusBadge } from '../status';
-import { MediaFrame } from '../MediaFrame';
+import { MediaFrame, artifactUrl as url } from '../MediaFrame';
 import { mediaLabel } from '../TestMedia';
 import { Modal } from '../ui';
 import { PageSkeleton } from './PageSkeleton';
@@ -37,10 +37,6 @@ function kindOf(attachment: Attachment): Kind {
   if (attachment.contentType.startsWith('video/')) return 'video';
   if (attachment.name.startsWith('trace') || attachment.contentType.includes('zip')) return 'trace';
   return 'other';
-}
-
-function url(path: string): string {
-  return `/api/artifacts?path=${encodeURIComponent(path)}`;
 }
 
 /** Value of the run dropdown for the latest results in test-results/. */

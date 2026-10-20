@@ -15,6 +15,7 @@ import {
   HistoryIcon,
   LayersIcon,
   SearchIcon,
+  ServerIcon,
   TerminalIcon,
   TrashIcon,
   TrendIcon,
@@ -175,7 +176,9 @@ export function HistoryPage() {
                     aria-checked={outcome === option}
                     onClick={() => setOutcome(option)}
                     className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-all duration-200 ${
-                      outcome === option ? 'border-accent bg-accent-soft text-ink' : 'border-line text-ink-2 hover:bg-surface-2'
+                      outcome === option
+                        ? 'border-accent bg-accent-soft text-ink'
+                        : 'border-line text-ink-2 hover:bg-surface-2'
                     }`}
                   >
                     {option !== 'all' && (
@@ -230,6 +233,12 @@ export function HistoryPage() {
                       count: runs.filter((run) => run.trigger === 'terminal').length,
                       icon: TerminalIcon,
                     },
+                    {
+                      value: 'ci',
+                      label: 'GitHub Actions',
+                      count: runs.filter((run) => run.trigger === 'ci').length,
+                      icon: ServerIcon,
+                    },
                   ]}
                   className="w-44"
                   align="end"
@@ -241,7 +250,11 @@ export function HistoryPage() {
             </div>
             {filtered.length > limit && (
               <div className="border-t border-line p-3 text-center">
-                <button type="button" onClick={() => setLimit((value) => value + PAGE_SIZE)} className={buttonStyles.ghost}>
+                <button
+                  type="button"
+                  onClick={() => setLimit((value) => value + PAGE_SIZE)}
+                  className={buttonStyles.ghost}
+                >
                   Show {Math.min(PAGE_SIZE, filtered.length - limit)} more
                 </button>
               </div>
@@ -281,8 +294,8 @@ export function HistoryPage() {
       >
         <p className="text-sm text-ink-2">
           This permanently deletes {runs.length} stored runs and the activity log from{' '}
-          <span className="font-mono">{results.meta.storeFile}</span>. Test reports and the latest results are not affected.
-          Export the history first if you want to keep a copy.
+          <span className="font-mono">{results.meta.storeFile}</span>. Test reports and the latest results are not
+          affected. Export the history first if you want to keep a copy.
         </p>
       </Modal>
     </div>

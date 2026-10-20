@@ -3,7 +3,8 @@ import path from 'node:path';
 import { connection, type NextRequest } from 'next/server';
 import { isSameOrigin, serveFile } from '@/lib/server/http';
 import { ARCHIVE_DIR, ARTIFACTS_DIR, FRAMEWORK_DIR, resolveInside } from '@/lib/server/paths';
-import { addActivity, updateStore } from '@/lib/server/store';
+import { CLOUD, deleteUrls } from '@/lib/server/cloud';
+import { addActivity, readStore, updateStore } from '@/lib/server/store';
 
 const MAX_PATHS_PER_REQUEST = 2000;
 
@@ -41,12 +42,20 @@ export async function DELETE(request: NextRequest) {
     paths.length > MAX_PATHS_PER_REQUEST ||
     !paths.every((item) => typeof item === 'string')
   ) {
-    return Response.json({ error: `Body must be { "paths": string[] } with 1-${MAX_PATHS_PER_REQUEST} paths` }, { status: 400 });
+    return Response.json(
+      { error: `Body must be { "paths": string[] } with 1-${MAX_PATHS_PER_REQUEST} paths` },
+      { status: 400 },
+    );
   }
+
+  if (CLOUD) return deleteCloudArtifacts(paths as string[]);
 
   const files = paths.map(resolveArtifact);
   if (files.some((file) => file === null)) {
-    return Response.json({ error: 'Only files in test-results/ or .dashboard/artifacts/ can be deleted' }, { status: 400 });
+    return Response.json(
+      { error: 'Only files in test-results/ or .dashboard/artifacts/ can be deleted' },
+      { status: 400 },
+    );
   }
 
   const targets = files as string[];
@@ -68,5 +77,34 @@ export async function DELETE(request: NextRequest) {
     });
   });
 
+  return Response.json({ deleted: deleted.size });
+}
+
+/** Hosted dashboard: attachments are Blob URLs; only URLs that belong to a stored run can be deleted. */
+async function deleteCloudArtifacts(urls: string[]): Promise<Response> {
+  const known = new Set(
+    (await readStore()).runs.flatMap((run) =>
+      (run.tests ?? []).flatMap((test) => (test.attachments ?? []).map((attachment) => attachment.path)),
+    ),
+  );
+  if (!urls.every((url) => known.has(url))) {
+    return Response.json({ error: 'Only attachments of stored runs can be deleted' }, { status: 400 });
+  }
+  await deleteUrls(urls);
+  const deleted = new Set(urls);
+  await updateStore((data) => {
+    for (const run of data.runs) {
+      for (const test of run.tests ?? []) {
+        if (!test.attachments) continue;
+        test.attachments = test.attachments.filter((attachment) => !deleted.has(attachment.path));
+        if (test.attachments.length === 0) delete test.attachments;
+      }
+    }
+    addActivity(data, {
+      type: 'artifacts.deleted',
+      time: new Date().toISOString(),
+      title: `${deleted.size} artifact${deleted.size === 1 ? '' : 's'} deleted`,
+    });
+  });
   return Response.json({ deleted: deleted.size });
 }

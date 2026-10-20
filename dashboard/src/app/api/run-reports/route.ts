@@ -14,11 +14,16 @@ export async function DELETE(request: NextRequest) {
   }
   const ids = body.ids as string[];
   let deleted: string[] = [];
+  let urls: string[] = [];
   await updateStore((data) => {
     const runs = data.runs.filter((run) => run.report && ids.includes(run.id));
-    runs.forEach((run) => delete run.report);
+    urls = runs.flatMap((run) => (run.reportUrl ? [run.reportUrl] : []));
+    runs.forEach((run) => {
+      delete run.report;
+      delete run.reportUrl;
+    });
     deleted = runs.map((run) => run.id);
   });
-  await deleteRunReports(deleted);
+  await deleteRunReports(deleted, urls);
   return Response.json({ deleted });
 }

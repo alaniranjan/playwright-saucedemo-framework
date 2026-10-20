@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Attachment, TestRow } from '../types';
+import { BLOB_PATHS, CLOUD, deletePrefix, listRunFolders, uploadFile } from './cloud';
 import { ARCHIVE_DIR, FRAMEWORK_DIR, resolveInside } from './paths';
 
 /** How many runs keep their screenshots, videos and traces (older runs keep results only). */
@@ -9,7 +10,13 @@ export const ARTIFACT_RUNS_KEPT = Math.max(1, Number(process.env.ARTIFACT_RUNS_K
 const ARCHIVED_TYPES = [/^image\//, /^video\//, /zip$/];
 
 function slug(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'test';
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 60) || 'test'
+  );
 }
 
 /**
@@ -22,15 +29,28 @@ export async function archiveRunArtifacts(runId: string, tests: readonly TestRow
 
   return Promise.all(
     tests.map(async (test, index) => {
-      const media = test.attachments.filter((attachment) => ARCHIVED_TYPES.some((type) => type.test(attachment.contentType)));
+      const media = test.attachments.filter((attachment) =>
+        ARCHIVED_TYPES.some((type) => type.test(attachment.contentType)),
+      );
       if (media.length === 0) return [];
       const testDir = path.join(runDir, `${String(index + 1).padStart(3, '0')}-${slug(test.title)}`);
-      await fs.mkdir(testDir, { recursive: true });
+      if (!CLOUD) await fs.mkdir(testDir, { recursive: true });
 
       const archived: Attachment[] = [];
       for (const [position, attachment] of media.entries()) {
         const source = resolveInside(FRAMEWORK_DIR, attachment.path);
         if (!source) continue;
+        if (CLOUD) {
+          // Uploaded to Blob; the attachment's path becomes the public URL the browser loads.
+          const name = `${String(index + 1).padStart(3, '0')}-${slug(test.title)}/${position + 1}-${path.basename(attachment.path)}`;
+          try {
+            const url = await uploadFile(BLOB_PATHS.runFolder(runId), name, source, attachment.contentType);
+            archived.push({ ...attachment, path: url });
+          } catch {
+            // Missing or unreadable; skip it.
+          }
+          continue;
+        }
         const target = path.join(testDir, `${position + 1}-${path.basename(attachment.path)}`);
         try {
           await fs.copyFile(source, target);
@@ -45,6 +65,7 @@ export async function archiveRunArtifacts(runId: string, tests: readonly TestRow
 }
 
 export async function deleteRunArtifacts(runId: string): Promise<void> {
+  if (CLOUD) return deletePrefix(BLOB_PATHS.runFolder(runId));
   const runDir = resolveInside(ARCHIVE_DIR, runId);
   if (runDir) await fs.rm(runDir, { recursive: true, force: true });
 }
@@ -53,7 +74,7 @@ export async function deleteRunArtifacts(runId: string): Promise<void> {
 export async function pruneArtifacts(keepRunIds: ReadonlySet<string>): Promise<void> {
   let entries: string[] = [];
   try {
-    entries = await fs.readdir(ARCHIVE_DIR);
+    entries = CLOUD ? await listRunFolders() : await fs.readdir(ARCHIVE_DIR);
   } catch {
     return;
   }

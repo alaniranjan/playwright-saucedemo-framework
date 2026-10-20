@@ -96,6 +96,8 @@ export function BrowserPicker({ compact = false, testing }: { compact?: boolean;
   } = useDashboard();
   const [tabChoice, setTab] = useState(DESKTOP);
   const projects = results?.catalog?.projects ?? [];
+  // Hosted runs happen on GitHub Actions, which has no live view to toggle.
+  const cloud = results?.meta.mode === 'cloud';
   const desktop = projects.filter((project) => project.kind === 'desktop');
   const devices = projects.filter((project) => project.kind === 'device');
   const deviceCategories = [...new Set(devices.map((project) => project.category ?? 'Devices'))];
@@ -212,7 +214,7 @@ export function BrowserPicker({ compact = false, testing }: { compact?: boolean;
           {tiles}
           <div className="flex flex-wrap items-center gap-2">
             {sizeSelect}
-            <PreviewToggle size="sm" />
+            {!cloud && <PreviewToggle size="sm" />}
           </div>
         </div>
       </fieldset>
@@ -233,7 +235,7 @@ export function BrowserPicker({ compact = false, testing }: { compact?: boolean;
                 selectedDevices.length === 1 ? '' : 's'
               }`
       }
-      actions={<PreviewToggle size="sm" />}
+      actions={!cloud && <PreviewToggle size="sm" />}
     >
       <div className="space-y-4">
         {tabs}

@@ -2,7 +2,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { projectNameFromUrl } from '../naming';
 import type { Catalog, FrameworkMeta } from '../types';
-import { readFrameworkPackage } from './framework';
+import { CLOUD } from './cloud';
+import { readFrameworkPackage, readPublishedFramework } from './framework';
+import { workflowUrl } from './github';
 import { FRAMEWORK_DIR, STORE_FILE } from './paths';
 import { MAX_RUNS } from './store';
 
@@ -24,10 +26,13 @@ export async function getMeta(catalog: Catalog | null): Promise<FrameworkMeta> {
     description: pkg.description,
     projectName: projectNameFromUrl(baseURL, pkg.name),
     baseURL,
-    frameworkDir: FRAMEWORK_DIR,
+    frameworkDir: CLOUD ? 'GitHub Actions' : FRAMEWORK_DIR,
     nodeVersion: process.version,
-    user: currentUser(),
-    storeFile: path.relative(FRAMEWORK_DIR, STORE_FILE),
+    user: CLOUD ? 'QA team' : currentUser(),
+    storeFile: CLOUD ? 'Vercel Blob · data/store.json' : path.relative(FRAMEWORK_DIR, STORE_FILE),
     maxRuns: MAX_RUNS,
+    mode: CLOUD ? 'cloud' : 'local',
+    ciUrl: CLOUD ? workflowUrl() : null,
+    catalogPublishedAt: CLOUD ? ((await readPublishedFramework())?.publishedAt ?? null) : null,
   };
 }

@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process';
 import { featureFromFile, labelFromScript } from '../naming';
 import type { Catalog, CatalogTest, ProjectInfo, RecordingSize, SpecFile, SuiteDefinition } from '../types';
-import { readFrameworkPackage } from './framework';
+import { CLOUD } from './cloud';
+import { readFrameworkPackage, readPublishedFramework } from './framework';
 import { CATALOG_REPORTER, FRAMEWORK_DIR } from './paths';
 
-interface ListedCatalog {
+export interface ListedCatalog {
   playwrightVersion: string;
   workers: number;
   recordingSizes?: RecordingSize[];
@@ -16,7 +17,8 @@ interface ListedCatalog {
 const CACHE_TTL_MS = 60_000;
 let cache: { at: number; value: Promise<ListedCatalog | null> } | null = null;
 
-function listTests(): Promise<ListedCatalog | null> {
+/** Lists every test, browser and device with `playwright test --list` in the local framework folder. */
+export function listTestsLocally(): Promise<ListedCatalog | null> {
   return new Promise((resolve) => {
     execFile(
       process.platform === 'win32' ? 'npx.cmd' : 'npx',
@@ -44,7 +46,10 @@ function listTests(): Promise<ListedCatalog | null> {
 
 function getListedCatalog(): Promise<ListedCatalog | null> {
   if (!cache || Date.now() - cache.at > CACHE_TTL_MS) {
-    const value = listTests();
+    // On Vercel, the listing published by GitHub Actions stands in for running Playwright.
+    const value = CLOUD
+      ? readPublishedFramework().then((framework) => (framework?.listed as ListedCatalog | undefined) ?? null)
+      : listTestsLocally();
     cache = { at: Date.now(), value };
     // Don't keep a failed listing for a whole minute.
     void value.then((result) => {

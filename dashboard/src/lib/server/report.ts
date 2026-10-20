@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { featureFromFile } from '../naming';
+import { BLOB_PATHS, CLOUD, cached, readJson } from './cloud';
 import { ARTIFACTS_DIR, FRAMEWORK_DIR, RESULTS_FILE } from './paths';
 import {
   TEST_STATUSES,
@@ -166,8 +167,16 @@ export interface ParsedReport {
   features: FeatureSummary[];
 }
 
+// The hosted dashboard shows the latest run GitHub Actions published (media already moved to Blob).
+const publishedLatest = cached(10_000, async () => (await readJson<ParsedReport>(BLOB_PATHS.latest))?.data ?? null);
+
+/** The latest run's results: test-results/results.json locally, or the copy published to Blob in cloud mode. */
+export function loadLatestReport(): Promise<ParsedReport | null> {
+  return CLOUD ? publishedLatest.get() : loadLocalReport();
+}
+
 /** Reads test-results/results.json; returns null when no run has produced it yet. */
-export async function loadLatestReport(): Promise<ParsedReport | null> {
+export async function loadLocalReport(): Promise<ParsedReport | null> {
   let raw: string;
   try {
     raw = await fs.readFile(RESULTS_FILE, 'utf8');

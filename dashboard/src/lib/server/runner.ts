@@ -20,7 +20,7 @@ export class RunError extends Error {
   }
 }
 
-interface ResolvedRun {
+export interface ResolvedRun {
   suite: string;
   label: string;
   script: string;
@@ -89,7 +89,7 @@ function appendLog(line: string): void {
  * Only npm scripts discovered from the framework's package.json can run, and selected files must be
  * spec files Playwright itself listed. Nothing from the request reaches a shell unchecked.
  */
-async function resolveRequest(request: RunRequest): Promise<ResolvedRun> {
+export async function resolveRequest(request: RunRequest): Promise<ResolvedRun> {
   const catalog = await getCatalog();
   if (!catalog) throw new RunError('Could not read the test catalog from the framework', 503);
 

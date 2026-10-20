@@ -25,7 +25,11 @@ const CONTENT_TYPES: Record<string, string> = {
  * Serves a file from disk with a content type derived from its extension; 404 when missing.
  * Honors a single `Range: bytes=a-b` request (206), which browsers need to seek within videos.
  */
-export async function serveFile(filePath: string, request?: Request, extraHeaders: Record<string, string> = {}): Promise<Response> {
+export async function serveFile(
+  filePath: string,
+  request?: Request,
+  extraHeaders: Record<string, string> = {},
+): Promise<Response> {
   try {
     const stat = await fs.stat(filePath);
     if (!stat.isFile()) return new Response('Not found', { status: 404 });
@@ -50,7 +54,11 @@ export async function serveFile(filePath: string, request?: Request, extraHeader
         await handle.read(chunk, 0, chunk.length, start);
         return new Response(chunk, {
           status: 206,
-          headers: { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(chunk.length) },
+          headers: {
+            ...headers,
+            'Content-Range': `bytes ${start}-${end}/${size}`,
+            'Content-Length': String(chunk.length),
+          },
         });
       } finally {
         await handle.close();
