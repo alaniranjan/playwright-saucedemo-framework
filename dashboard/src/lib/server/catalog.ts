@@ -46,9 +46,13 @@ export function listTestsLocally(): Promise<ListedCatalog | null> {
 
 function getListedCatalog(): Promise<ListedCatalog | null> {
   if (!cache || Date.now() - cache.at > CACHE_TTL_MS) {
-    // On Vercel, the listing published by GitHub Actions stands in for running Playwright.
+    // On Vercel, the listing published by GitHub Actions stands in for running Playwright. The workflow installs
+    // whichever browsers a run needs, so every browser and device counts as installed whatever that runner had.
     const value = CLOUD
-      ? readPublishedFramework().then((framework) => (framework?.listed as ListedCatalog | undefined) ?? null)
+      ? readPublishedFramework().then((framework) => {
+          const listed = (framework?.listed as ListedCatalog | undefined) ?? null;
+          return listed && { ...listed, projects: listed.projects.map((project) => ({ ...project, installed: true })) };
+        })
       : listTestsLocally();
     cache = { at: Date.now(), value };
     // Don't keep a failed listing for a whole minute.
