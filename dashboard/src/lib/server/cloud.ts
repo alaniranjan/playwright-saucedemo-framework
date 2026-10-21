@@ -26,10 +26,10 @@ export interface JsonDocument<T> {
 }
 
 /**
- * Reads a JSON blob as it is now; null if missing. `get(..., { useCache: false })` only bypasses the CDN for private
- * blobs, so a public read could return the previous version (and ETag) for up to a minute and every `ifMatch` write
- * would fail. Instead the current ETag comes from `head` (no CDN), and the ETag in the URL makes each version its own
- * cache entry.
+ * Reads a JSON blob; null if missing. Public blobs are served by the CDN (query strings don't change its cache key),
+ * which may still return the previous version for a moment after an overwrite. The ETag returned is the one that came
+ * with the content, so a write based on stale content fails its `ifMatch` check, and is retried, instead of
+ * overwriting the newer version.
  */
 export async function readJson<T>(pathname: string): Promise<JsonDocument<T> | null> {
   let meta;
@@ -39,12 +39,12 @@ export async function readJson<T>(pathname: string): Promise<JsonDocument<T> | n
     if (error instanceof BlobNotFoundError) return null;
     throw error;
   }
-  const url = new URL(meta.url);
-  url.searchParams.set('v', meta.etag.replaceAll('"', ''));
-  const response = await fetch(url, { cache: 'no-store' });
+  const response = await fetch(meta.url, { cache: 'no-store' });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Could not read ${pathname} (HTTP ${response.status})`);
-  return { data: (await response.json()) as T, etag: meta.etag };
+  // The CDN sends a weak ETag ("W/" prefix) for the same version.
+  const etag = response.headers.get('etag')?.replace(/^W\//, '') ?? meta.etag;
+  return { data: (await response.json()) as T, etag };
 }
 
 /** Writes a JSON blob. With `ifMatch`, fails with BlobPreconditionFailedError if someone else wrote it first. */

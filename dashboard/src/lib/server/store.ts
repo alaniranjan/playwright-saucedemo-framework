@@ -166,7 +166,9 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 // ---- Cloud: the same document in Vercel Blob, written by GitHub Actions and by the hosted dashboard ----
 
 const CLOUD_READ_TTL_MS = 5_000;
-const CLOUD_WRITE_ATTEMPTS = 5;
+const CLOUD_WRITE_ATTEMPTS = 10;
+/** After a conflict, wait before re-reading: the CDN may need a moment to serve the newer version. */
+const CLOUD_RETRY_DELAY_MS = 1_000;
 
 async function readCloudStore(): Promise<{ data: StoreData; etag: string | null }> {
   const document = await readJson<Partial<StoreData>>(BLOB_PATHS.store);
@@ -187,6 +189,7 @@ async function updateCloudStore(mutate: (data: StoreData) => void): Promise<Stor
       return data;
     } catch (error) {
       if (!isConflict(error) || attempt >= CLOUD_WRITE_ATTEMPTS) throw error;
+      await new Promise((resolve) => setTimeout(resolve, CLOUD_RETRY_DELAY_MS * Math.min(attempt, 5)));
     }
   }
 }
