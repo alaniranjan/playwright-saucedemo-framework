@@ -16,7 +16,7 @@ export interface LiveTunnel {
 }
 
 /** While a run's tunnel isn't published yet, look again at most this often (each look is one Blob operation). */
-const RECHECK_MS = 5_000;
+const RECHECK_MS = 3_000;
 /** Stop looking this long after the run started: it was started with live preview off. */
 const GIVE_UP_AFTER_MS = 5 * 60_000;
 const REQUEST_TIMEOUT_MS = 4_000;
@@ -34,7 +34,7 @@ export async function liveTunnelFor(runId: string | null, startedAt: string | nu
   if (startedAt && now - new Date(startedAt).getTime() > GIVE_UP_AFTER_MS) return null;
   if (now - (lastLook.get(runId) ?? 0) < RECHECK_MS) return null;
   lastLook.set(runId, now);
-  const tunnel = (await readJson<LiveTunnel>(BLOB_PATHS.liveTunnel).catch(() => null))?.data ?? null;
+  const tunnel = (await readJson<LiveTunnel>(BLOB_PATHS.liveTunnel(runId)).catch(() => null))?.data ?? null;
   if (tunnel?.runId !== runId) return null;
   found.clear();
   found.set(runId, tunnel);

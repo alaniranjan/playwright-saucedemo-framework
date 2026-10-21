@@ -15,8 +15,11 @@ export const BLOB_PATHS = {
   store: 'data/store.json',
   framework: 'data/framework.json',
   latest: 'data/latest.json',
-  /** Where the running workflow's live preview can be reached (scripts/live-tunnel.ts). */
-  liveTunnel: 'data/live-tunnel.json',
+  /**
+   * Where a running workflow's live preview can be reached (scripts/live-tunnel.ts). A new path per run: an
+   * overwritten blob can be served stale by the CDN for up to a minute, longer than a short run lasts.
+   */
+  liveTunnel: (runId: string) => `runs/${runId}/live-tunnel.json`,
   runFolder: (runId: string) => `runs/${runId}/`,
 } as const;
 

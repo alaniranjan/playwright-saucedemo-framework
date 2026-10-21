@@ -77,9 +77,6 @@ jobs:
           npm ci
           npm ci --prefix dashboard
 
-      - name: Install browsers
-        run: npx playwright install --with-deps chrome firefox webkit
-
       # Serves the live preview to the hosted dashboard through a Cloudflare quick tunnel (dashboard/scripts/live-tunnel.ts).
       # Optional: the tests run the same if it can't start.
       - name: Start live preview
@@ -100,6 +97,32 @@ jobs:
           done
           cat "$RUNNER_TEMP/live-tunnel.log"
           grep -q 'Live preview published' "$RUNNER_TEMP/live-tunnel.log"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # Only the browsers this run uses: Chrome for desktop Chrome and Android devices, WebKit for Safari and Apple devices.
+      - name: Install browsers
+        env:
+          BROWSERS: ${{ github.event_name == 'workflow_dispatch' && inputs.browsers || 'chrome' }}
+          DEVICES: ${{ inputs.devices }}
+        run: |
+          needed=()
+          IFS=, read -ra targets <<< "$BROWSERS,$DEVICES"
+          for target in "${targets[@]}"; do
+            case "$target" in
+              chrome | pixel-* | galaxy-*) needed+=(chrome) ;;
+              firefox) needed+=(firefox) ;;
+              webkit | iphone-* | ipad-*) needed+=(webkit) ;;
+              all) needed+=(chrome firefox webkit) ;;
+            esac
+          done
+          [ ${#needed[@]} -eq 0 ] && needed=(chrome)
+          # shellcheck disable=SC2046 # one argument per browser
+          npx playwright install --with-deps $(printf '%s\n' "${needed[@]}" | sort -u)
 
       - name: Run tests
         id: tests

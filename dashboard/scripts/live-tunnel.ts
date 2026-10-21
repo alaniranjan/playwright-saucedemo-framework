@@ -95,7 +95,7 @@ async function main(): Promise<void> {
   const url = await openTunnel();
   await waitUntilReachable(url, key);
   const tunnel: LiveTunnel = { runId, url, key, startedAt: new Date().toISOString() };
-  await writeJson(BLOB_PATHS.liveTunnel, tunnel);
+  await writeJson(BLOB_PATHS.liveTunnel(runId), tunnel);
   // The server and tunnel keep this process alive until the job ends.
   console.log(`Live preview published for ${runId}`);
 }
