@@ -1,5 +1,6 @@
 import type { RunPhase, RunRequest, RunState, RunStatePayload } from '../types';
 import { cached } from './cloud';
+import { fetchTunnelFrame, fetchTunnelLive, liveTunnelFor } from './live-tunnel';
 import { RunError, resolveRequest } from './runner';
 import { addActivity, nextRunId, updateStore } from './store';
 
@@ -153,23 +154,34 @@ export async function getCloudRunState(offset: number, clientRunId: number): Pro
   const start = clientRunId === run.id ? Math.min(offset, log.length) : 0;
   const name = RUN_NAME.exec(run.display_title);
   const phase = phaseOf(run);
+  const startedAt = run.run_started_at ?? run.created_at;
+  const tunnel = phase === 'running' ? await liveTunnelFor(name?.[1] ?? null, startedAt) : null;
   return {
     id: run.id,
     runId: name?.[1] ?? null,
     label: name?.[2] ?? run.display_title,
     suite: null,
     phase,
-    startedAt: run.run_started_at ?? run.created_at,
+    startedAt,
     finishedAt: phase === 'running' ? null : run.updated_at,
     exitCode: phase === 'running' ? null : phase === 'passed' ? 0 : 1,
     logLength: log.length,
-    preview: false,
+    preview: Boolean(tunnel),
     externalUrl: run.html_url,
     log: log.slice(start),
     offset: start,
-    live: null,
+    live: tunnel ? await fetchTunnelLive(tunnel) : null,
     liveRunId: null,
   };
+}
+
+/** The latest preview frame of worker slot `slot` in the active workflow run (204 when there is none). */
+export async function getCloudFrame(slot: string): Promise<Response> {
+  const { run } = await latest.get();
+  const name = run && isActive(run) ? RUN_NAME.exec(run.display_title) : null;
+  const tunnel = name ? await liveTunnelFor(name[1]!, run!.run_started_at ?? run!.created_at) : null;
+  if (!tunnel) return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
+  return fetchTunnelFrame(tunnel, slot);
 }
 
 export async function isCloudBusy(): Promise<boolean> {
@@ -207,11 +219,21 @@ export async function startCloudRun(request: RunRequest): Promise<RunState> {
         browsers: resolved.browsers.join(','),
         devices: resolved.devices.join(','),
         size: resolved.size ?? '',
+        preview: String(resolved.preview),
       },
     }),
   });
   latest.clear();
-  return { id: -1, ...IDLE, runId, label: resolved.label, suite: resolved.suite, phase: 'running', startedAt };
+  return {
+    id: -1,
+    ...IDLE,
+    runId,
+    label: resolved.label,
+    suite: resolved.suite,
+    phase: 'running',
+    startedAt,
+    preview: resolved.preview,
+  };
 }
 
 export async function cancelCloudRun(): Promise<boolean> {

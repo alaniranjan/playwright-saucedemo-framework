@@ -7,7 +7,7 @@ const RESULTS_REFRESH_MS = 15_000;
 const RUN_POLL_ACTIVE_MS = 1_000;
 const RUN_POLL_IDLE_MS = 3_000;
 /** Hosted, run state comes from the GitHub API, which changes slowly and is rate limited. */
-const CLOUD_POLL_ACTIVE_MS = 4_000;
+const CLOUD_POLL_ACTIVE_MS = 2_000;
 const CLOUD_POLL_IDLE_MS = 10_000;
 const HEALTH_POLL_MS = 10_000;
 const MAX_CONSOLE_LINES = 3000;

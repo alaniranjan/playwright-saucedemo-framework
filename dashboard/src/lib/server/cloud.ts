@@ -15,6 +15,8 @@ export const BLOB_PATHS = {
   store: 'data/store.json',
   framework: 'data/framework.json',
   latest: 'data/latest.json',
+  /** Where the running workflow's live preview can be reached (scripts/live-tunnel.ts). */
+  liveTunnel: 'data/live-tunnel.json',
   runFolder: (runId: string) => `runs/${runId}/`,
 } as const;
 

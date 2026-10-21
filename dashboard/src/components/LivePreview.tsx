@@ -192,15 +192,7 @@ export function LivePreview() {
   const runStreams = activeRun?.source === 'terminal' || Boolean(run?.preview);
 
   let body: ReactNode;
-  if (results?.meta.mode === 'cloud') {
-    body = (
-      <Banner
-        icon={<EyeOffIcon width={22} height={22} />}
-        title="Tests run on GitHub Actions"
-        text="The hosted dashboard has no live browser view. Follow each step in the run log below or on GitHub; screenshots, videos and the Allure report appear when the run finishes."
-      />
-    );
-  } else if (!livePreview) {
+  if (!livePreview) {
     body = (
       <Banner
         icon={<EyeOffIcon width={22} height={22} />}
@@ -222,6 +214,15 @@ export function LivePreview() {
         icon={<LoaderIcon width={22} height={22} />}
         title="Tests finished"
         text="Generating the Allure report…"
+      />
+    );
+  } else if (!runStreams && results?.meta.mode === 'cloud') {
+    // Hosted, the stream starts once the GitHub runner has set up and opened its tunnel.
+    body = (
+      <Banner
+        icon={<LoaderIcon width={22} height={22} className="animate-spin [animation-duration:2.5s]" />}
+        title="Preparing the GitHub Actions runner…"
+        text="The preview appears once the runner has installed the browsers and started the tests (about a minute). Runs started with live preview off, or by a push to main, have no preview."
       />
     );
   } else if (!runStreams) {

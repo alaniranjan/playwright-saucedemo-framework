@@ -40,6 +40,10 @@ on:
         description: Browser size (720p, 1080p, 1440p)
         required: false
         default: ''
+      preview:
+        description: Stream the browsers to the hosted dashboard's live preview
+        required: false
+        default: 'false'
 
 # One run at a time: runs share the published history, and the dashboard shows one active run.
 concurrency:
@@ -76,6 +80,27 @@ jobs:
       - name: Install browsers
         run: npx playwright install --with-deps chrome firefox webkit
 
+      # Serves the live preview to the hosted dashboard through a Cloudflare quick tunnel (dashboard/scripts/live-tunnel.ts).
+      # Optional: the tests run the same if it can't start.
+      - name: Start live preview
+        if: inputs.preview == 'true' && inputs.run_id != '' && env.HAS_BLOB_TOKEN == 'true'
+        continue-on-error: true
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/cloudflared" https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x "$RUNNER_TEMP/cloudflared"
+          export PATH="$RUNNER_TEMP:$PATH"
+          nohup npm run live:tunnel --prefix dashboard > "$RUNNER_TEMP/live-tunnel.log" 2>&1 &
+          for _ in $(seq 1 90); do
+            grep -q 'Live preview published' "$RUNNER_TEMP/live-tunnel.log" && break
+            grep -q 'Live preview unavailable' "$RUNNER_TEMP/live-tunnel.log" && break
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/live-tunnel.log"
+          grep -q 'Live preview published' "$RUNNER_TEMP/live-tunnel.log"
+
       - name: Run tests
         id: tests
         continue-on-error: true
@@ -85,6 +110,7 @@ jobs:
           BROWSERS: ${{ github.event_name == 'workflow_dispatch' && inputs.browsers || 'chrome' }}
           DEVICES: ${{ inputs.devices }}
           RECORDING_RESOLUTION: ${{ inputs.size }}
+          LIVE_PREVIEW: ${{ inputs.preview == 'true' && '1' || '' }}
         run: |
           # Inputs come from the dashboard; only known shapes reach the command line.
           [[ "$SUITE" =~ ^test(:[a-z0-9-]+)?$ ]] || { echo "Invalid suite: $SUITE"; exit 2; }
