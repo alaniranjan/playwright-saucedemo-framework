@@ -74,7 +74,7 @@ Cloud mode switches on only on Vercel or in GitHub Actions, when `BLOB_READ_WRIT
 | Variable | Value |
 |---|---|
 | `BLOB_READ_WRITE_TOKEN` | Set automatically when a **public** Blob store is connected to the project |
-| `GITHUB_REPOSITORY` | `owner/repo`, e.g. `alaniranjan/playwright-saucedemo-framework` |
+| `GITHUB_REPOSITORY` | Optional when the project is deployed from Git (taken from Vercel's `VERCEL_GIT_REPO_OWNER`/`VERCEL_GIT_REPO_SLUG`); otherwise `owner/repo`, e.g. `alaniranjan/playwright-saucedemo-framework` |
 | `GITHUB_TOKEN` | Fine-grained personal access token for that repository with **Actions: Read and write** (to start, follow and cancel runs) |
 | `DASHBOARD_PASSWORD` | Protects every page and API with a browser login (user `admin`, or `DASHBOARD_USER`). Strongly recommended: without it anyone with the URL can start runs |
 | `GITHUB_WORKFLOW_FILE`, `GITHUB_BRANCH` | Optional; default `e2e.yml` and `main` |

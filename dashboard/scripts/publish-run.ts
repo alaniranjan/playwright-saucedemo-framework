@@ -4,6 +4,7 @@
  * the test catalog, the run record, failed tests' screenshots and videos, and the run's Allure report.
  *
  * Optional environment (set when the dashboard started the run): RUN_ID, RUN_LABEL, RUN_SUITE.
+ * `--catalog-only` publishes just the test catalog (e.g. from a developer machine with DASHBOARD_MODE=cloud).
  */
 import { listTestsLocally } from '../src/lib/server/catalog';
 import { BLOB_PATHS, CLOUD, writeJson } from '../src/lib/server/cloud';
@@ -24,6 +25,8 @@ async function main(): Promise<void> {
   } else {
     console.warn('Could not list the tests; the catalog was not updated.');
   }
+
+  if (process.argv.includes('--catalog-only')) return;
 
   const report = await loadLocalReport();
   if (!report) {

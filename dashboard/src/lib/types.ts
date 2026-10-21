@@ -148,6 +148,8 @@ export interface FrameworkMeta {
   mode: 'local' | 'cloud';
   /** The GitHub Actions workflow page, when hosted. */
   ciUrl: string | null;
+  /** False when hosted without GITHUB_TOKEN: the dashboard only shows results published by GitHub Actions. */
+  canRun: boolean;
   /** When GitHub Actions last published the test catalog (hosted only). */
   catalogPublishedAt: string | null;
 }

@@ -51,7 +51,50 @@ export function RunSelector({
     .filter((file) => files.has(file.file))
     .reduce((sum, file) => sum + file.tests.length, 0);
 
+  if (results?.meta.canRun === false) {
+    return (
+      <div className="rounded-xl border border-dashed border-line bg-surface-2/40 p-4 text-sm text-ink-2">
+        <p className="font-medium text-ink">View-only dashboard</p>
+        <p className="mt-1 text-xs text-ink-3">
+          Tests run on GitHub Actions on every push to main, and their results appear here.
+        </p>
+        {results.meta.ciUrl && (
+          <a
+            href={results.meta.ciUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-block text-xs font-medium text-accent-strong hover:underline"
+          >
+            Open the workflow on GitHub ↗
+          </a>
+        )}
+      </div>
+    );
+  }
+
   if (!catalog) {
+    // Hosted, the catalog is published by GitHub Actions; until then there is nothing to wait for.
+    if (results?.meta.mode === 'cloud') {
+      return (
+        <div className="rounded-xl border border-dashed border-line bg-surface-2/40 p-4 text-sm text-ink-2">
+          <p className="font-medium text-ink">No test catalog published yet</p>
+          <p className="mt-1 text-xs text-ink-3">
+            GitHub Actions publishes the suites, spec files, browsers and devices after its next run (needs the{' '}
+            <code className="font-mono">BLOB_READ_WRITE_TOKEN</code> repository secret).
+          </p>
+          {results.meta.ciUrl && (
+            <a
+              href={results.meta.ciUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-block text-xs font-medium text-accent-strong hover:underline"
+            >
+              Open the workflow on GitHub ↗
+            </a>
+          )}
+        </div>
+      );
+    }
     return <p className="text-sm text-ink-3">Reading the test catalog from the framework…</p>;
   }
 

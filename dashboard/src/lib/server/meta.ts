@@ -4,7 +4,7 @@ import { projectNameFromUrl } from '../naming';
 import type { Catalog, FrameworkMeta } from '../types';
 import { CLOUD } from './cloud';
 import { readFrameworkPackage, readPublishedFramework } from './framework';
-import { workflowUrl } from './github';
+import { githubConfigured, workflowUrl } from './github';
 import { FRAMEWORK_DIR, STORE_FILE } from './paths';
 import { MAX_RUNS } from './store';
 
@@ -33,6 +33,7 @@ export async function getMeta(catalog: Catalog | null): Promise<FrameworkMeta> {
     maxRuns: MAX_RUNS,
     mode: CLOUD ? 'cloud' : 'local',
     ciUrl: CLOUD ? workflowUrl() : null,
+    canRun: CLOUD ? githubConfigured() : true,
     catalogPublishedAt: CLOUD ? ((await readPublishedFramework())?.publishedAt ?? null) : null,
   };
 }

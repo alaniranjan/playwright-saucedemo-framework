@@ -7,7 +7,12 @@ import { addActivity, nextRunId, updateStore } from './store';
  * The hosted dashboard's runner: tests run on GitHub Actions (.github/workflows/e2e.yml). Starting a run dispatches
  * the workflow; run state, the step-by-step log and cancelling all go through the GitHub REST API.
  */
-const REPOSITORY = process.env.GITHUB_REPOSITORY ?? '';
+/** Falls back to the Git repository Vercel deploys from, so only the token has to be set there. */
+const REPOSITORY =
+  process.env.GITHUB_REPOSITORY ||
+  (process.env.VERCEL_GIT_REPO_OWNER && process.env.VERCEL_GIT_REPO_SLUG
+    ? `${process.env.VERCEL_GIT_REPO_OWNER}/${process.env.VERCEL_GIT_REPO_SLUG}`
+    : '');
 const TOKEN = process.env.GITHUB_TOKEN ?? '';
 const WORKFLOW = process.env.GITHUB_WORKFLOW_FILE ?? 'e2e.yml';
 const BRANCH = process.env.GITHUB_BRANCH ?? 'main';
@@ -50,7 +55,7 @@ export function workflowUrl(): string | null {
 }
 
 async function github<T>(path: string, init: RequestInit = {}): Promise<T> {
-  if (!githubConfigured()) throw new RunError('GitHub is not configured: set GITHUB_REPOSITORY and GITHUB_TOKEN', 503);
+  if (!githubConfigured()) throw new RunError('This dashboard is view-only: tests run on GitHub Actions on every push to main', 503);
   const response = await fetch(`https://api.github.com/repos/${REPOSITORY}${path}`, {
     ...init,
     headers: {
@@ -128,7 +133,7 @@ const IDLE: Omit<RunState, 'id'> = {
 /** Same shape as the local runner's state, for the latest workflow run (`clientRunId` is the id the client has). */
 export async function getCloudRunState(offset: number, clientRunId: number): Promise<RunStatePayload> {
   if (!githubConfigured()) {
-    const log = ['GitHub is not connected yet: set GITHUB_TOKEN in the Vercel project to start runs from here.'];
+    const log = ['View-only: tests run on GitHub Actions on every push to main, and their results appear here.'];
     // Offsets work as for real runs, so the client shows the line once.
     const start = clientRunId === 0 ? Math.min(offset, log.length) : 0;
     return {

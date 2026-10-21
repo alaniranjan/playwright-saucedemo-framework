@@ -42,16 +42,20 @@ export function CurrentRunPanel() {
             </p>
           </div>
         )}
-        <div className="mt-4 flex gap-2">
-          {allSuite && (
-            <button type="button" onClick={() => void startRun({ suite: allSuite.script })} className={`${buttonStyles.primary} flex-1`}>
-              <PlayIcon width={13} height={13} /> Run all
+        {results?.meta.canRun === false ? (
+          <p className="mt-4 text-xs text-ink-3">View-only: tests run on GitHub Actions on every push to main.</p>
+        ) : (
+          <div className="mt-4 flex gap-2">
+            {allSuite && (
+              <button type="button" onClick={() => void startRun({ suite: allSuite.script })} className={`${buttonStyles.primary} flex-1`}>
+                <PlayIcon width={13} height={13} /> Run all
+              </button>
+            )}
+            <button type="button" onClick={() => setRunDialogOpen(true)} className={`${buttonStyles.secondary} flex-1`}>
+              Select tests
             </button>
-          )}
-          <button type="button" onClick={() => setRunDialogOpen(true)} className={`${buttonStyles.secondary} flex-1`}>
-            Select tests
-          </button>
-        </div>
+          </div>
+        )}
       </Card>
     );
   }
