@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { BlobPreconditionFailedError, del, get, list, put } from '@vercel/blob';
+import { BlobNotFoundError, BlobPreconditionFailedError, del, head, list, put } from '@vercel/blob';
 
 /**
  * Cloud mode: the dashboard runs on Vercel and tests run on GitHub Actions, which publishes results to Vercel Blob.
@@ -23,12 +23,26 @@ export interface JsonDocument<T> {
   etag: string;
 }
 
-/** Reads a JSON blob straight from storage (bypassing the CDN cache, so a write is seen at once); null if missing. */
+/**
+ * Reads a JSON blob as it is now; null if missing. `get(..., { useCache: false })` only bypasses the CDN for private
+ * blobs, so a public read could return the previous version (and ETag) for up to a minute and every `ifMatch` write
+ * would fail. Instead the current ETag comes from `head` (no CDN), and the ETag in the URL makes each version its own
+ * cache entry.
+ */
 export async function readJson<T>(pathname: string): Promise<JsonDocument<T> | null> {
-  const result = await get(pathname, { access: 'public', useCache: false });
-  if (!result || result.statusCode !== 200) return null;
-  const text = await new Response(result.stream).text();
-  return { data: JSON.parse(text) as T, etag: result.blob.etag };
+  let meta;
+  try {
+    meta = await head(pathname);
+  } catch (error) {
+    if (error instanceof BlobNotFoundError) return null;
+    throw error;
+  }
+  const url = new URL(meta.url);
+  url.searchParams.set('v', meta.etag.replaceAll('"', ''));
+  const response = await fetch(url, { cache: 'no-store' });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Could not read ${pathname} (HTTP ${response.status})`);
+  return { data: (await response.json()) as T, etag: meta.etag };
 }
 
 /** Writes a JSON blob. With `ifMatch`, fails with BlobPreconditionFailedError if someone else wrote it first. */
